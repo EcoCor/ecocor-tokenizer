@@ -1,0 +1,12 @@
+# Runtime deps (mirrored in pyproject.toml)
+spacy>=3.8,<4
+pydantic>=2
+requests>=2.31
+
+# spaCy models — pinned wheels so `pip install -r requirements.txt`
+# fetches them without a separate `python -m spacy download` step.
+de-core-news-sm @ https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+
+# Dev / test
+pytest>=7

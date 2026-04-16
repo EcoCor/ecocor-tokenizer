@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecocor-tokenizer"
+version = "0.1.0"
+description = "Tokenize EcoCor TEI documents into <w>/<pc> with stand-off plant/animal entity annotations."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "EcoCor team" }]
+dependencies = [
+  "spacy>=3.8,<4",
+  "pydantic>=2",
+  "requests>=2.31",
+]
+
+[project.scripts]
+ecocor-tokenize = "ecocor_tokenizer.cli:main"
+ecocor-extract-annotations = "ecocor_tokenizer.extract:main"
+
+[tool.setuptools.packages.find]
+include = ["ecocor_tokenizer*"]
