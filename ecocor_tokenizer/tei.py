@@ -123,6 +123,7 @@ def write_layer_tei(
     app_ident: str = "",
     app_version: str = "",
     app_desc: str = "",
+    app_url: str = "",
     gen_date: Optional[str] = None,
 ) -> None:
     """Write an annotation layer as a full TEI document with teiHeader.
@@ -138,7 +139,8 @@ def write_layer_tei(
       taxonomy_xml:         taxonomy declaration block (use constants above)
       app_ident:            application identifier (for <appInfo>), omit for manual
       app_version:          application version
-      app_desc:             application description (model, word list, etc.)
+      app_desc:             application label (tool name, model, etc.)
+      app_url:              application URL (emitted as <ref> inside <application>)
       gen_date:             generation date (default: today)
     """
     if gen_date is None:
@@ -153,11 +155,13 @@ def write_layer_tei(
 
     app_info = ""
     if app_ident:
+        ref_line = ""
+        if app_url:
+            ref_line = f'\n      <ref target="{_esc(app_url)}"/>'
         app_info = (
             f"  <appInfo>\n"
             f"    <application ident=\"{_esc(app_ident)}\" version=\"{_esc(app_version)}\">\n"
-            f"      <label>{_esc(app_ident)}</label>\n"
-            f"      <desc>{_esc(app_desc)}</desc>\n"
+            f"      <label>{_esc(app_desc or app_ident)}</label>{ref_line}\n"
             f"    </application>\n"
             f"  </appInfo>"
         )
