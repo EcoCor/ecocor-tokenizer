@@ -140,6 +140,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     # inside a combined <standOff> appended to the base TEI.
     inline_layers: list[str] = []
 
+    # Layer source refs point at the tokenized file (where the token IDs live)
+    tokenized_filename = args.output.name
+
     if args.linguistic_out:
         write_layer_tei(
             args.linguistic_out,
@@ -147,7 +150,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             source_id=meta["id"],
             layer_type="linguistic",
             title=f"Linguistic annotations: {meta['title'] or source_filename}",
-            source_filename=source_filename,
+            source_filename=tokenized_filename,
             resp_name="ecocor-tokenizer",
             taxonomy_xml=STTS_TAXONOMY,
             app_ident="ecocor-tokenizer",
@@ -164,7 +167,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             source_id=meta["id"],
             layer_type="dictionarylookup",
             title=f"Dictionary lookup annotations: {meta['title'] or source_filename}",
-            source_filename=source_filename,
+            source_filename=tokenized_filename,
             resp_name="ecocor-tokenizer",
             taxonomy_xml=ENTITY_TAXONOMY,
             app_ident="ecocor-tokenizer",
