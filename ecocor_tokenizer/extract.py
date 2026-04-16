@@ -106,8 +106,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="responsible person/tool name for respStmt",
     )
     parser.add_argument(
-        "--resp-type", default="manual annotation",
-        help="responsibility type (default: manual annotation)",
+        "--resp-type", default="automated annotation",
+        help="responsibility type (default: automated annotation)",
     )
     parser.add_argument(
         "--app-ident", default="",
