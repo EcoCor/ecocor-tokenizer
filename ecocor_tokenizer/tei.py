@@ -221,6 +221,51 @@ def mark_as_tokenized(root: ET.Element) -> str:
     return new_id
 
 
+def prepare_tokenized_header(root: ET.Element) -> None:
+    """Clean up the teiHeader for the tokenized output.
+
+    - Remove ELTeC schema reference (handled separately via xml-model PI)
+    - Set encodingDesc/@n to "ecocor-tokenized"
+    - Add EcoCor respStmt to titleStmt
+    - Remove <extent>
+    """
+    header = root.find(f"{{{TEI_NS}}}teiHeader")
+    if header is None:
+        return
+
+    file_desc = header.find(f"{{{TEI_NS}}}fileDesc")
+    if file_desc is not None:
+        # Remove <extent>
+        for extent in file_desc.findall(f"{{{TEI_NS}}}extent"):
+            file_desc.remove(extent)
+
+        # Add EcoCor respStmt to titleStmt
+        title_stmt = file_desc.find(f"{{{TEI_NS}}}titleStmt")
+        if title_stmt is not None:
+            resp_stmt = ET.SubElement(title_stmt, f"{{{TEI_NS}}}respStmt")
+            resp = ET.SubElement(resp_stmt, f"{{{TEI_NS}}}resp")
+            resp.text = "EcoCor conversion"
+            name = ET.SubElement(resp_stmt, f"{{{TEI_NS}}}name")
+            name.text = "ecocor-tokenizer"
+
+    # Update encodingDesc
+    enc_desc = header.find(f"{{{TEI_NS}}}encodingDesc")
+    if enc_desc is not None:
+        enc_desc.set("n", "ecocor-tokenized")
+        # Clear old content (e.g. empty <p/> from ELTeC)
+        for child in list(enc_desc):
+            enc_desc.remove(child)
+        enc_desc.text = None
+        p = ET.SubElement(enc_desc, f"{{{TEI_NS}}}p")
+        p.text = "Tokenized TEI with vanilla <w> and <pc> elements."
+    else:
+        # Create encodingDesc if missing
+        enc_desc = ET.SubElement(header, f"{{{TEI_NS}}}encodingDesc")
+        enc_desc.set("n", "ecocor-tokenized")
+        p = ET.SubElement(enc_desc, f"{{{TEI_NS}}}p")
+        p.text = "Tokenized TEI with vanilla <w> and <pc> elements."
+
+
 # ---- existing helpers (unchanged) ----------------------------------------
 
 

@@ -33,6 +33,7 @@ from .tei import (
     extract_xml_model_pi,
     insert_standoff,
     mark_as_tokenized,
+    prepare_tokenized_header,
     replace_paragraphs,
     write_layer_tei,
     write_tei,
@@ -133,6 +134,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Mark vanilla TEI: type="tokenized", xml:id → {id}_tokenized
     tokenized_id = mark_as_tokenized(root)
+    prepare_tokenized_header(root)
 
     # Each layer either goes to its own file (split) or gets inlined
     # inside a combined <standOff> appended to the base TEI.
@@ -178,7 +180,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
         insert_standoff(root, combined)
 
-    write_tei(tree, args.output, xml_model_pi)
+    # Don't emit the xml-model PI (ELTeC schema no longer applies)
+    write_tei(tree, args.output)
 
     print(
         f"tokenized {replaced} paragraph(s) -> {args.output}",
