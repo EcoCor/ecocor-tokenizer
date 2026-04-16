@@ -6,9 +6,8 @@ format. Base TEI is vanilla — only `<w>` and `<pc>` with stable
 (POS + lemma) and entity annotations (plant / animal) are emitted as
 separate stand-off `<listAnnotation>` layers.
 
-A second command extracts inline manual annotations (e.g. from a
-colleague's `<Tier>`, `<Pflanze>`, `<Lebensraum>` markup) into a
-stand-off layer.
+Additional commands extract inline manual annotations and align gold
+standard files to existing tokenized texts.
 
 ## Install
 
@@ -105,6 +104,93 @@ Produces a `<listAnnotation type="ntee">` with category mappings:
 - `<Pflanze>` → `#cat-plant`
 - `<Lebensraum>` → `#cat-habitat`
 
+## Extract and align gold standard annotations
+
+Gold standard files have a different structure: flat running text in
+`<body>` with no `<p>`, no `<w>`, no `xml:id` — just inline
+`<Tier>`, `<Pflanze>`, `<Lebensraum>` wrappers in prose. Two modes
+handle this.
+
+### Mode 1: self-tokenize (standalone gold texts)
+
+For gold texts that are NOT in the EcoCor corpus. Tokenizes the gold
+text with spaCy, assigns token IDs, aligns annotations by character
+offset:
+
+```sh
+ecocor-extract-gold GOLD.xml \
+    -o TOKENIZED.xml \
+    --gold-out LAYER.xml \
+    --language de
+```
+
+Produces both a vanilla TEI and a gold annotation layer. Optionally
+also emits a linguistic layer with `--linguistic-out`.
+
+### Mode 2: align to existing vanilla (corpus texts)
+
+For gold texts that correspond to an already-tokenized corpus text.
+Matches the gold text to existing `<w>` tokens and emits a gold layer
+pointing at the existing token IDs — no new tokenization:
+
+```sh
+ecocor-extract-gold GOLD.xml \
+    --align-to VANILLA.xml \
+    --gold-out LAYER.xml \
+    --language de
+```
+
+### How alignment works
+
+The gold text includes material not present in the vanilla `<w>`
+tokens — chapter headings, stage directions, character names — because
+those live in `<head>` / `<front>` elements that the tokenizer skips.
+
+A naive greedy match (match each word forward) fails badly (~8%) because
+common heading words like "Blatt" accidentally match body text at wrong
+positions, causing the alignment pointer to jump ahead and lose sync.
+
+The alignment uses a **two-phase strategy**:
+
+1. **Seek phase**: scans for a candidate match with a 500-token
+   lookahead, but requires **3 consecutive matching tokens** to confirm.
+   This prevents heading words from causing false jumps.
+
+2. **Run phase**: once confirmed, does fast 1:1 greedy matching with a
+   10-token lookahead for minor tokenization differences. When sync is
+   lost (e.g. at the next chapter heading), drops back to seek phase.
+
+Tested on Raabe *Pfisters Mühle* (gold = first third of the novel,
+~17K words; vanilla = full novel, ~52K tokens):
+
+- **99% word alignment** (16,994 / 17,140 gold words matched)
+- **98% annotation mapping** (240 / 245 annotations)
+- The 5 unmapped annotations were in chapter headings with no
+  corresponding `<w>` tokens — expected and acceptable.
+
+### Known limitations
+
+- **Alignment depends on identical surface forms.** If the gold text
+  has different orthography or normalization than the corpus TEI
+  (e.g. "müße" vs. "müsse"), tokens won't match. No fuzzy matching
+  is implemented yet.
+- **Headings produce gaps.** Annotations on heading words (chapter
+  titles, character names in drama) cannot be mapped because our
+  tokenizer only processes `<p xml:id>` content, not `<head>`.
+- **Long structural gaps** (>500 words of non-paragraph material)
+  can exceed the seek lookahead. Unlikely in prose, possible in
+  drama with long cast lists.
+- **Gold files wrap single words only.** No multi-token annotations
+  exist in the current gold data, so multi-token alignment is
+  untested.
+
+### Recommendation for new gold annotations
+
+Annotate directly on the vanilla tokenized TEI (like the ntee
+workflow) rather than on flat text. This eliminates the alignment
+step entirely — `ecocor-extract-annotations` reads the token IDs
+directly, no character-offset matching needed.
+
 ## Test
 
 ```sh
@@ -124,6 +210,8 @@ ecocor_tokenizer/
   tei.py         TEI file I/O: parse, replace paragraphs, insert
                  <standOff>, write (preserves <?xml-model?> PI)
   cli.py         argparse front-end for ecocor-tokenize
-  extract.py     argparse front-end for ecocor-extract-annotations
+  extract.py     ecocor-extract-annotations (ntee inline → stand-off)
+  gold.py        ecocor-extract-gold (gold standard → stand-off, with
+                 self-tokenize or align-to-vanilla modes)
   __main__.py    entry point for python -m ecocor_tokenizer
 ```
