@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 from pathlib import Path
 from typing import Optional
 from xml.etree import ElementTree as ET
+from xml.sax.saxutils import escape as _xml_escape
 
 from .tokenizer import Language, Paragraph
 
@@ -15,6 +17,199 @@ XML_NS = "http://www.w3.org/XML/1998/namespace"
 ET.register_namespace("", TEI_NS)
 
 PROLOG_PI_RE = re.compile(r"<\?xml-model[^?]*\?>", re.DOTALL)
+
+
+# ---- taxonomy constants ------------------------------------------------
+
+STTS_TAXONOMY = """\
+    <taxonomy xml:id="stts">
+      <desc>Stuttgart-Tübingen Tagset (STTS) for German POS tagging.
+      Reference: https://www.ims.uni-stuttgart.de/documents/ressourcen/lexika/tagsets/stts-1999.pdf</desc>
+      <category xml:id="stts-ADJA"><catDesc>Attributive adjective</catDesc></category>
+      <category xml:id="stts-ADJD"><catDesc>Predicative/adverbial adjective</catDesc></category>
+      <category xml:id="stts-ADV"><catDesc>Adverb</catDesc></category>
+      <category xml:id="stts-APPR"><catDesc>Preposition</catDesc></category>
+      <category xml:id="stts-APPRART"><catDesc>Preposition with fused article</catDesc></category>
+      <category xml:id="stts-APPO"><catDesc>Postposition</catDesc></category>
+      <category xml:id="stts-APZR"><catDesc>Right part of circumposition</catDesc></category>
+      <category xml:id="stts-ART"><catDesc>Article</catDesc></category>
+      <category xml:id="stts-CARD"><catDesc>Cardinal number</catDesc></category>
+      <category xml:id="stts-FM"><catDesc>Foreign material</catDesc></category>
+      <category xml:id="stts-ITJ"><catDesc>Interjection</catDesc></category>
+      <category xml:id="stts-KOKOM"><catDesc>Comparative conjunction</catDesc></category>
+      <category xml:id="stts-KON"><catDesc>Coordinating conjunction</catDesc></category>
+      <category xml:id="stts-KOUI"><catDesc>Subordinating conjunction with zu + infinitive</catDesc></category>
+      <category xml:id="stts-KOUS"><catDesc>Subordinating conjunction</catDesc></category>
+      <category xml:id="stts-NE"><catDesc>Proper noun</catDesc></category>
+      <category xml:id="stts-NN"><catDesc>Common noun</catDesc></category>
+      <category xml:id="stts-NNE"><catDesc>Proper noun (variant)</catDesc></category>
+      <category xml:id="stts-PDAT"><catDesc>Demonstrative pronoun (attributive)</catDesc></category>
+      <category xml:id="stts-PDS"><catDesc>Demonstrative pronoun (substituting)</catDesc></category>
+      <category xml:id="stts-PIAT"><catDesc>Indefinite pronoun (attributive)</catDesc></category>
+      <category xml:id="stts-PIS"><catDesc>Indefinite pronoun (substituting)</catDesc></category>
+      <category xml:id="stts-PPER"><catDesc>Personal pronoun</catDesc></category>
+      <category xml:id="stts-PPOSAT"><catDesc>Possessive pronoun (attributive)</catDesc></category>
+      <category xml:id="stts-PPOSS"><catDesc>Possessive pronoun (substituting)</catDesc></category>
+      <category xml:id="stts-PRELAT"><catDesc>Relative pronoun (attributive)</catDesc></category>
+      <category xml:id="stts-PRELS"><catDesc>Relative pronoun (substituting)</catDesc></category>
+      <category xml:id="stts-PRF"><catDesc>Reflexive pronoun</catDesc></category>
+      <category xml:id="stts-PROAV"><catDesc>Pronominal adverb</catDesc></category>
+      <category xml:id="stts-PTKA"><catDesc>Particle with adjective/adverb</catDesc></category>
+      <category xml:id="stts-PTKANT"><catDesc>Answer particle</catDesc></category>
+      <category xml:id="stts-PTKNEG"><catDesc>Negation particle</catDesc></category>
+      <category xml:id="stts-PTKVZ"><catDesc>Separable verb prefix</catDesc></category>
+      <category xml:id="stts-PTKZU"><catDesc>zu particle</catDesc></category>
+      <category xml:id="stts-PWAT"><catDesc>Interrogative pronoun (attributive)</catDesc></category>
+      <category xml:id="stts-PWAV"><catDesc>Interrogative/relative adverb</catDesc></category>
+      <category xml:id="stts-TRUNC"><catDesc>Truncated word</catDesc></category>
+      <category xml:id="stts-VAFIN"><catDesc>Finite auxiliary verb</catDesc></category>
+      <category xml:id="stts-VAIMP"><catDesc>Imperative auxiliary verb</catDesc></category>
+      <category xml:id="stts-VAINF"><catDesc>Infinitive auxiliary verb</catDesc></category>
+      <category xml:id="stts-VAPP"><catDesc>Past participle auxiliary verb</catDesc></category>
+      <category xml:id="stts-VMFIN"><catDesc>Finite modal verb</catDesc></category>
+      <category xml:id="stts-VMINF"><catDesc>Infinitive modal verb</catDesc></category>
+      <category xml:id="stts-VMPP"><catDesc>Past participle modal verb</catDesc></category>
+      <category xml:id="stts-VVFIN"><catDesc>Finite full verb</catDesc></category>
+      <category xml:id="stts-VVIMP"><catDesc>Imperative full verb</catDesc></category>
+      <category xml:id="stts-VVINF"><catDesc>Infinitive full verb</catDesc></category>
+      <category xml:id="stts-VVIZU"><catDesc>Infinitive full verb with zu</catDesc></category>
+      <category xml:id="stts-VVPP"><catDesc>Past participle full verb</catDesc></category>
+      <category xml:id="stts-XY"><catDesc>Non-word</catDesc></category>
+    </taxonomy>"""
+
+ENTITY_TAXONOMY = """\
+    <taxonomy xml:id="ecocor-entity-types">
+      <category xml:id="cat-animal"><catDesc>Animal — Animalia</catDesc></category>
+      <category xml:id="cat-plant"><catDesc>Plant — Plantae</catDesc></category>
+    </taxonomy>"""
+
+ENTITY_TAXONOMY_WITH_HABITAT = """\
+    <taxonomy xml:id="ecocor-entity-types">
+      <category xml:id="cat-animal"><catDesc>Animal — Animalia</catDesc></category>
+      <category xml:id="cat-plant"><catDesc>Plant — Plantae</catDesc></category>
+      <category xml:id="cat-habitat"><catDesc>Habitat — landscape, water body, terrain</catDesc></category>
+    </taxonomy>"""
+
+
+# ---- source metadata extraction ----------------------------------------
+
+
+def extract_source_meta(root: ET.Element) -> dict:
+    """Extract xml:id, title, and author from a TEI root element."""
+    source_id = root.get(f"{{{XML_NS}}}id", "")
+    title_el = root.find(f".//{{{TEI_NS}}}titleStmt/{{{TEI_NS}}}title")
+    author_el = root.find(f".//{{{TEI_NS}}}titleStmt/{{{TEI_NS}}}author")
+    return {
+        "id": source_id,
+        "title": (title_el.text or "").strip() if title_el is not None else "",
+        "author": (author_el.text or "").strip() if author_el is not None else "",
+    }
+
+
+# ---- layer TEI writer ---------------------------------------------------
+
+
+def write_layer_tei(
+    path: Path,
+    list_annotation_xml: str,
+    *,
+    source_id: str,
+    layer_type: str,
+    title: str,
+    source_filename: str,
+    resp_name: str,
+    resp_type: str = "automated annotation",
+    taxonomy_xml: str = "",
+    app_ident: str = "",
+    app_version: str = "",
+    app_desc: str = "",
+    gen_date: Optional[str] = None,
+) -> None:
+    """Write an annotation layer as a full TEI document with teiHeader.
+
+    Parameters:
+      list_annotation_xml:  the <listAnnotation> fragment (no <standOff> wrapper)
+      source_id:            xml:id of the source TEI (e.g. "eco_de_000033")
+      layer_type:           layer name (e.g. "linguistic", "entity", "ntee", "gold")
+      title:                human-readable title for the layer document
+      source_filename:      filename of the vanilla TEI this layer annotates
+      resp_name:            who/what produced the layer
+      resp_type:            "automated annotation" | "manual annotation" | etc.
+      taxonomy_xml:         taxonomy declaration block (use constants above)
+      app_ident:            application identifier (for <appInfo>), omit for manual
+      app_version:          application version
+      app_desc:             application description (model, word list, etc.)
+      gen_date:             generation date (default: today)
+    """
+    if gen_date is None:
+        gen_date = date.today().isoformat()
+
+    layer_id = f"{source_id}_{layer_type}" if source_id else layer_type
+
+    # Build optional sections
+    class_decl = ""
+    if taxonomy_xml:
+        class_decl = f"  <classDecl>\n{taxonomy_xml}\n  </classDecl>"
+
+    app_info = ""
+    if app_ident:
+        app_info = (
+            f"  <appInfo>\n"
+            f"    <application ident=\"{_esc(app_ident)}\" version=\"{_esc(app_version)}\">\n"
+            f"      <label>{_esc(app_ident)}</label>\n"
+            f"      <desc>{_esc(app_desc)}</desc>\n"
+            f"    </application>\n"
+            f"  </appInfo>"
+        )
+
+    encoding_desc = ""
+    if class_decl or app_info:
+        parts = [p for p in [class_decl, app_info] if p]
+        encoding_desc = "<encodingDesc>\n" + "\n".join(parts) + "\n</encodingDesc>"
+
+    body = f"""\
+<?xml version="1.0" encoding="utf-8"?>
+<TEI xml:id="{_esc(layer_id)}" xmlns="{TEI_NS}">
+<teiHeader>
+  <fileDesc>
+    <titleStmt>
+      <title>{_esc(title)}</title>
+      <respStmt>
+        <resp>{_esc(resp_type)}</resp>
+        <name>{_esc(resp_name)}</name>
+      </respStmt>
+    </titleStmt>
+    <publicationStmt>
+      <publisher>EcoCor</publisher>
+      <availability>
+        <licence target="https://creativecommons.org/licenses/by/4.0/"/>
+      </availability>
+    </publicationStmt>
+    <sourceDesc>
+      <bibl>
+        <ref type="source" target="{_esc(source_filename)}">{_esc(source_filename)}</ref>
+      </bibl>
+    </sourceDesc>
+  </fileDesc>
+  {encoding_desc}
+  <revisionDesc>
+    <change when="{_esc(gen_date)}">Generated</change>
+  </revisionDesc>
+</teiHeader>
+<standOff>
+  {list_annotation_xml}
+</standOff>
+</TEI>
+"""
+
+    path.write_text(body, encoding="utf-8")
+
+
+def _esc(s: str) -> str:
+    return _xml_escape(s, {'"': "&quot;", "'": "&apos;"})
+
+
+# ---- existing helpers (unchanged) ----------------------------------------
 
 
 def extract_xml_model_pi(source: str) -> Optional[str]:

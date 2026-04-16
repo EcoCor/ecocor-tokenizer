@@ -24,11 +24,16 @@ from typing import Optional
 from xml.etree import ElementTree as ET
 
 from .tei import (
+    ENTITY_TAXONOMY,
+    STTS_TAXONOMY,
+    TEI_NS,
     detect_language,
     extract_paragraphs,
+    extract_source_meta,
     extract_xml_model_pi,
     insert_standoff,
     replace_paragraphs,
+    write_layer_tei,
     write_tei,
 )
 from .tokenizer import (
@@ -37,8 +42,6 @@ from .tokenizer import (
     UrlDescriptor,
     annotate,
 )
-
-TEI_NS = "http://www.tei-c.org/ns/1.0"
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -83,17 +86,6 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _write_standoff_file(path: Path, list_annotation_xml: str) -> None:
-    """Write a layer fragment as a standalone `<standOff>` TEI document."""
-    body = (
-        '<?xml version="1.0" encoding="utf-8"?>\n'
-        f'<standOff xmlns="{TEI_NS}">\n'
-        f'  {list_annotation_xml}\n'
-        '</standOff>\n'
-    )
-    path.write_text(body, encoding="utf-8")
-
-
 def main(argv: Optional[list[str]] = None) -> int:
     args = _build_parser().parse_args(argv)
 
@@ -134,17 +126,45 @@ def main(argv: Optional[list[str]] = None) -> int:
     annotated = {p.id: p.xml for p in response.paragraphs}
     replaced = replace_paragraphs(root, annotated)
 
+    # Source metadata for layer headers
+    meta = extract_source_meta(root)
+    source_filename = args.input.name
+
     # Each layer either goes to its own file (split) or gets inlined
     # inside a combined <standOff> appended to the base TEI.
     inline_layers: list[str] = []
 
     if args.linguistic_out:
-        _write_standoff_file(args.linguistic_out, response.linguistic)
+        write_layer_tei(
+            args.linguistic_out,
+            response.linguistic,
+            source_id=meta["id"],
+            layer_type="linguistic",
+            title=f"Linguistic annotations: {meta['title'] or source_filename}",
+            source_filename=source_filename,
+            resp_name="ecocor-tokenizer",
+            taxonomy_xml=STTS_TAXONOMY,
+            app_ident="ecocor-tokenizer",
+            app_version="0.1.0",
+            app_desc=f"spaCy {language.value}_core_news_sm",
+        )
     else:
         inline_layers.append(response.linguistic)
 
     if args.entity_out:
-        _write_standoff_file(args.entity_out, response.entity)
+        write_layer_tei(
+            args.entity_out,
+            response.entity,
+            source_id=meta["id"],
+            layer_type="entity",
+            title=f"Entity annotations: {meta['title'] or source_filename}",
+            source_filename=source_filename,
+            resp_name="ecocor-tokenizer",
+            taxonomy_xml=ENTITY_TAXONOMY,
+            app_ident="ecocor-tokenizer",
+            app_version="0.1.0",
+            app_desc="Word list: animal_plant-{}.json".format(language.value),
+        )
     else:
         inline_layers.append(response.entity)
 

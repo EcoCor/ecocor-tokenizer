@@ -24,7 +24,7 @@ from typing import Optional
 from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape as _xml_escape
 
-from .tei import TEI_NS, XML_NS
+from .tei import ENTITY_TAXONOMY_WITH_HABITAT, TEI_NS, XML_NS, extract_source_meta, write_layer_tei
 
 CATEGORY_MAP: dict[str, str] = {
     "Tier": "cat-animal",
@@ -105,13 +105,20 @@ def main(argv: Optional[list[str]] = None) -> int:
     annotations = extract_inline_annotations(root)
     layer_xml = annotations_to_ntee_layer(annotations)
 
-    output = (
-        '<?xml version="1.0" encoding="utf-8"?>\n'
-        f'<standOff xmlns="{TEI_NS}">\n'
-        f'  {layer_xml}\n'
-        '</standOff>\n'
+    meta = extract_source_meta(root)
+    source_filename = args.input.name
+
+    write_layer_tei(
+        args.output,
+        layer_xml,
+        source_id=meta["id"],
+        layer_type="ntee",
+        title=f"Manual entity annotations (ntee): {meta['title'] or source_filename}",
+        source_filename=source_filename,
+        resp_name="ntee",
+        resp_type="manual annotation",
+        taxonomy_xml=ENTITY_TAXONOMY_WITH_HABITAT,
     )
-    args.output.write_text(output, encoding="utf-8")
 
     print(
         f"extracted {len(annotations)} annotation(s) -> {args.output}",

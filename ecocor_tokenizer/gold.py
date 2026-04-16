@@ -36,7 +36,16 @@ from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape as _xml_escape
 
 from .tokenizer import Language, linguistic_layer
-from .tei import TEI_NS, XML_NS, extract_xml_model_pi, write_tei
+from .tei import (
+    ENTITY_TAXONOMY_WITH_HABITAT,
+    STTS_TAXONOMY,
+    TEI_NS,
+    XML_NS,
+    extract_source_meta,
+    extract_xml_model_pi,
+    write_layer_tei,
+    write_tei,
+)
 
 ET.register_namespace("", TEI_NS)
 
@@ -371,16 +380,6 @@ def _derive_doc_id(path: Path) -> str:
     return f"gold_{name.lower()}"
 
 
-def _write_standoff_file(path: Path, list_annotation_xml: str) -> None:
-    body = (
-        '<?xml version="1.0" encoding="utf-8"?>\n'
-        f'<standOff xmlns="{TEI_NS}">\n'
-        f'  {list_annotation_xml}\n'
-        '</standOff>\n'
-    )
-    path.write_text(body, encoding="utf-8")
-
-
 # ---- CLI -----------------------------------------------------------------
 
 
@@ -469,7 +468,20 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
 
         gold_xml = gold_layer_to_standoff(mapped)
-        _write_standoff_file(args.gold_out, gold_xml)
+        # For align mode, get source metadata from the vanilla file
+        vanilla_tree = ET.parse(str(args.align_to))
+        vanilla_meta = extract_source_meta(vanilla_tree.getroot())
+        write_layer_tei(
+            args.gold_out,
+            gold_xml,
+            source_id=vanilla_meta["id"],
+            layer_type="gold",
+            title=f"Gold standard annotations: {vanilla_meta['title'] or args.align_to.name}",
+            source_filename=args.align_to.name,
+            resp_name="FFH project team",
+            resp_type="gold standard annotation",
+            taxonomy_xml=ENTITY_TAXONOMY_WITH_HABITAT,
+        )
         print(f"gold layer -> {args.gold_out}", file=sys.stderr)
 
     else:
@@ -508,13 +520,35 @@ def main(argv: Optional[list[str]] = None) -> int:
 
         # Gold layer
         gold_xml = gold_layer_to_standoff(mapped)
-        _write_standoff_file(args.gold_out, gold_xml)
+        write_layer_tei(
+            args.gold_out,
+            gold_xml,
+            source_id=doc_id,
+            layer_type="gold",
+            title=f"Gold standard annotations: {args.input.name}",
+            source_filename=args.output.name,
+            resp_name="FFH project team",
+            resp_type="gold standard annotation",
+            taxonomy_xml=ENTITY_TAXONOMY_WITH_HABITAT,
+        )
         print(f"gold layer -> {args.gold_out}", file=sys.stderr)
 
         # Optional linguistic layer
         if args.linguistic_out:
             ling_xml = linguistic_layer([tokens], language)
-            _write_standoff_file(args.linguistic_out, ling_xml)
+            write_layer_tei(
+                args.linguistic_out,
+                ling_xml,
+                source_id=doc_id,
+                layer_type="linguistic",
+                title=f"Linguistic annotations: {args.input.name}",
+                source_filename=args.output.name,
+                resp_name="ecocor-tokenizer",
+                taxonomy_xml=STTS_TAXONOMY,
+                app_ident="ecocor-tokenizer",
+                app_version="0.1.0",
+                app_desc=f"spaCy {language.value}_core_news_sm",
+            )
             print(f"linguistic layer -> {args.linguistic_out}", file=sys.stderr)
 
     return 0
