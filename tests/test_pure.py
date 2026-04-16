@@ -97,7 +97,7 @@ def test_entity_layer_minimal_annotation_shape():
     root = _wrap(xml)
     la = root.find(f".//{{{TEI_NS}}}listAnnotation")
     assert la is not None
-    assert la.get("type") == "entity"
+    assert la.get("type") == "entities"
     ann = la.find(f"{{{TEI_NS}}}annotation")
     assert ann is not None
     assert ann.get("target") == "#p1_0010"
@@ -106,7 +106,7 @@ def test_entity_layer_minimal_annotation_shape():
 
 
 def test_entity_layer_empty_is_self_closed():
-    assert entity_layer([]) == '<listAnnotation type="entity"/>'
+    assert entity_layer([]) == '<listAnnotation type="entities"/>'
 
 
 # ---- linguistic layer ---------------------------------------------------

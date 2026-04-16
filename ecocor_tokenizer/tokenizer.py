@@ -179,10 +179,10 @@ def match_entities(
 
 
 def entity_layer(annotations: list[dict]) -> str:
-    """Render entity records into a `<listAnnotation type="entity">` block."""
+    """Render entity records into a `<listAnnotation type="entities">` block."""
     if not annotations:
-        return '<listAnnotation type="entity"/>'
-    parts = ['<listAnnotation type="entity">']
+        return '<listAnnotation type="entities"/>'
+    parts = ['<listAnnotation type="entities">']
     for a in annotations:
         cat_id = f"cat-{a['category'].lower()}"
         target = f"#{a['token_id']}"

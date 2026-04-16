@@ -86,7 +86,7 @@ Dictionary lookup layer (`annotations/{name}_dictionarylookup.xml`):
 ```xml
 <TEI xml:id="eco_de_000033_dictionarylookup" type="annotation" ...>
   ...
-  <listAnnotation type="entity">
+  <listAnnotation type="entities">
     <annotation target="#eco_de_000033_150_1850"
                 ana="#cat-animal"
                 corresp="https://www.wikidata.org/wiki/Q25334"/>
