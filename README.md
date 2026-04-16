@@ -1,64 +1,109 @@
 # ecocor-tokenizer
 
-Command-line tool that turns an EcoCor TEI file into the new
-token-level format: every `<p xml:id="…">` in `<body>` gets tokenized
-into `<w>` / `<pc>` children with stable xml:ids, `@lemma`, and `@pos`
-(STTS for German), and plant / animal mentions are emitted as a
-`<standOff>` block of minimal `<annotation>` elements.
+Command-line tool that turns EcoCor TEI files into the new token-level
+format. Base TEI is vanilla — only `<w>` and `<pc>` with stable
+`xml:id`s, no inline linguistic attributes. Linguistic annotations
+(POS + lemma) and entity annotations (plant / animal) are emitted as
+separate stand-off `<listAnnotation>` layers.
 
-Conventions come from
-[../notes/standoff-annotation-proposal.md](../notes/standoff-annotation-proposal.md).
-Reference output:
-[../examples/1807_Kleist_Erdbeben.tokenized-sample.xml](../examples/1807_Kleist_Erdbeben.tokenized-sample.xml).
+A second command extracts inline manual annotations (e.g. from a
+colleague's `<Tier>`, `<Pflanze>`, `<Lebensraum>` markup) into a
+stand-off layer.
 
 ## Install
 
-Requires Python ≥ 3.10. One `make install` sets up a venv, pulls the
-runtime deps, and — critically — installs the spaCy German/English
-models from pinned release wheels (no separate `python -m spacy
-download` step needed).
+Requires Python >= 3.10.
 
 ```sh
 make install
 source .venv/bin/activate
 ```
 
-Behind the scenes that runs:
+This creates a venv, installs spaCy + pinned German/English model
+wheels (no separate `python -m spacy download` needed), and registers
+the CLI entry points.
+
+## Tokenize a TEI file
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt   # spacy + pinned model wheels
-.venv/bin/pip install -e .                  # installs the CLI entry point
+# all layers inline in one file (both <listAnnotation> blocks inside
+# one <standOff> appended to the TEI)
+ecocor-tokenize INPUT.xml -o OUTPUT.xml
+
+# split mode — each layer to its own file
+ecocor-tokenize INPUT.xml -o OUTPUT.xml \
+    --linguistic-out OUTPUT.linguistic.xml \
+    --entity-out OUTPUT.entity.xml
+
+# override language or word list
+ecocor-tokenize INPUT.xml -o OUTPUT.xml --language de --entity-list URL
 ```
 
-The spaCy model wheels are pinned in
-[requirements.txt](requirements.txt):
+Language is auto-detected from `TEI/@xml:lang`.
 
-- `de_core_news_sm` 3.8.0 — POS tags are STTS
-- `en_core_web_sm` 3.8.0 — POS tags are Penn Treebank
-
-First `pip install` downloads ~50 MB per model. They land inside the
-venv; `make clean` nukes them alongside the rest.
-
-## Use
+### Batch-tokenize a full corpus
 
 ```sh
-# inline — tokenized TEI with <standOff> appended (single file)
-ecocor-tokenize IN.xml -o OUT.xml
-
-# split — stand-off written to a separate file (matches the
-# annotations/{layer}/{corpus}/{text}.xml layout in the proposal)
-ecocor-tokenize IN.xml -o OUT.xml --annotations-out OUT.standoff.xml
-
-# overrides
-ecocor-tokenize IN.xml -o OUT.xml --language de --entity-list URL
+mkdir -p eco-de/tokenized
+for f in eco-de/tei/*.xml; do
+  name=$(basename "$f")
+  ecocor-tokenize "$f" \
+    -o "eco-de/tokenized/${name}" \
+    --linguistic-out "eco-de/tokenized/${name%.xml}.linguistic.xml" \
+    --entity-out "eco-de/tokenized/${name%.xml}.entity.xml"
+done
 ```
 
-Language is detected from `TEI/@xml:lang`. The entity word list
-defaults to the language's built-in list (currently from
-`ecocor-extractor/word_list`); pass `--entity-list URL` to override.
+### Output
 
-Also runnable without installation via `python -m ecocor_tokenizer …`.
+Base TEI (`OUTPUT.xml`):
+
+```xml
+<w xml:id="eco_de_000033_30_0060">Hauptstadt</w>
+```
+
+Linguistic layer (`OUTPUT.linguistic.xml`):
+
+```xml
+<listAnnotation type="linguistic">
+  <annotation target="#eco_de_000033_30_0060" ana="#stts-NN">
+    <note type="lemma">Hauptstadt</note>
+  </annotation>
+</listAnnotation>
+```
+
+Entity layer (`OUTPUT.entity.xml`):
+
+```xml
+<listAnnotation type="entity">
+  <annotation target="#eco_de_000033_150_1850"
+              ana="#cat-animal"
+              corresp="https://www.wikidata.org/wiki/Q25334"/>
+</listAnnotation>
+```
+
+## Extract manual inline annotations
+
+If a colleague annotates the vanilla TEI by wrapping token text in
+category elements:
+
+```xml
+<w xml:id="eco_de_000033_90_1560"><Tier>Tiere</Tier></w>
+<w xml:id="eco_de_000033_110_2730"><Pflanze>Eichen</Pflanze></w>
+<w xml:id="eco_de_000033_110_3190"><Lebensraum>Feld</Lebensraum></w>
+```
+
+Extract them as a stand-off layer (input file is not modified):
+
+```sh
+ecocor-extract-annotations ANNOTATED.xml -o ANNOTATIONS.xml
+```
+
+Produces a `<listAnnotation type="ntee">` with category mappings:
+
+- `<Tier>` → `#cat-animal`
+- `<Pflanze>` → `#cat-plant`
+- `<Lebensraum>` → `#cat-habitat`
 
 ## Test
 
@@ -66,22 +111,19 @@ Also runnable without installation via `python -m ecocor_tokenizer …`.
 make test
 ```
 
-Runs the pure-logic tests ([tests/test_pure.py](tests/test_pure.py),
-[tests/test_tei_io.py](tests/test_tei_io.py)) — no spaCy models needed
-for those. End-to-end tests that load a model are worth adding once
-the pipeline is stable.
+Pure-logic tests (no spaCy models needed). 18 tests covering token id
+scheme, vanilla TEI emission, linguistic + entity layer rendering,
+TEI file I/O.
 
 ## Layout
 
 ```
 ecocor_tokenizer/
-  tokenizer.py   core pipeline: pydantic models, id scheme, TEI
-                 fragment emission, entity matching, spaCy glue
+  tokenizer.py   core: pydantic models, id scheme, vanilla TEI emission,
+                 linguistic + entity layer rendering, spaCy glue
   tei.py         TEI file I/O: parse, replace paragraphs, insert
                  <standOff>, write (preserves <?xml-model?> PI)
-  cli.py         argparse front-end, wires the two together
+  cli.py         argparse front-end for ecocor-tokenize
+  extract.py     argparse front-end for ecocor-extract-annotations
   __main__.py    entry point for python -m ecocor_tokenizer
 ```
-
-Pure logic is kept free of spaCy so helpers can be unit-tested without
-loading models.
