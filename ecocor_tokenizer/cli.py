@@ -32,6 +32,7 @@ from .tei import (
     extract_source_meta,
     extract_xml_model_pi,
     insert_standoff,
+    mark_as_tokenized,
     replace_paragraphs,
     write_layer_tei,
     write_tei,
@@ -126,9 +127,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     annotated = {p.id: p.xml for p in response.paragraphs}
     replaced = replace_paragraphs(root, annotated)
 
-    # Source metadata for layer headers
+    # Source metadata for layer headers (before modifying the root)
     meta = extract_source_meta(root)
     source_filename = args.input.name
+
+    # Mark vanilla TEI: type="tokenized", xml:id → {id}_tokenized
+    tokenized_id = mark_as_tokenized(root)
 
     # Each layer either goes to its own file (split) or gets inlined
     # inside a combined <standOff> appended to the base TEI.
@@ -156,8 +160,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.entity_out,
             response.entity,
             source_id=meta["id"],
-            layer_type="entity",
-            title=f"Entity annotations: {meta['title'] or source_filename}",
+            layer_type="dictionarylookup",
+            title=f"Dictionary lookup annotations: {meta['title'] or source_filename}",
             source_filename=source_filename,
             resp_name="ecocor-tokenizer",
             taxonomy_xml=ENTITY_TAXONOMY,

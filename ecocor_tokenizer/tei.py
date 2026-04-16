@@ -169,7 +169,7 @@ def write_layer_tei(
 
     body = f"""\
 <?xml version="1.0" encoding="utf-8"?>
-<TEI xml:id="{_esc(layer_id)}" xmlns="{TEI_NS}">
+<TEI xml:id="{_esc(layer_id)}" type="annotation" xmlns="{TEI_NS}">
 <teiHeader>
   <fileDesc>
     <titleStmt>
@@ -207,6 +207,18 @@ def write_layer_tei(
 
 def _esc(s: str) -> str:
     return _xml_escape(s, {'"': "&quot;", "'": "&apos;"})
+
+
+def mark_as_tokenized(root: ET.Element) -> str:
+    """Set type="tokenized" on the TEI root and append _tokenized to xml:id.
+
+    Returns the new xml:id (used by layer files to reference the source).
+    """
+    source_id = root.get(f"{{{XML_NS}}}id", "")
+    new_id = f"{source_id}_tokenized" if source_id else "tokenized"
+    root.set(f"{{{XML_NS}}}id", new_id)
+    root.set("type", "tokenized")
+    return new_id
 
 
 # ---- existing helpers (unchanged) ----------------------------------------

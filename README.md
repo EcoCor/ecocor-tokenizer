@@ -43,42 +43,56 @@ Language is auto-detected from `TEI/@xml:lang`.
 ### Batch-tokenize a full corpus
 
 ```sh
-mkdir -p eco-de/tokenized
+mkdir -p eco-de/tokenized eco-de/annotations
 for f in eco-de/tei/*.xml; do
-  name=$(basename "$f")
+  name=$(basename "${f%.xml}")
   ecocor-tokenize "$f" \
-    -o "eco-de/tokenized/${name}" \
-    --linguistic-out "eco-de/tokenized/${name%.xml}.linguistic.xml" \
-    --entity-out "eco-de/tokenized/${name%.xml}.entity.xml"
+    -o "eco-de/tokenized/${name}_tokenized.xml" \
+    --linguistic-out "eco-de/annotations/${name}_linguistic.xml" \
+    --entity-out "eco-de/annotations/${name}_dictionarylookup.xml"
 done
 ```
 
 ### Output
 
-Base TEI (`OUTPUT.xml`):
+All output TEI documents carry `@type` and `@xml:id` on the root `<TEI>`:
+
+Base TEI (`tokenized/{name}_tokenized.xml`):
 
 ```xml
-<w xml:id="eco_de_000033_30_0060">Hauptstadt</w>
+<TEI xml:id="eco_de_000033_tokenized" type="tokenized" ...>
+  ...
+  <w xml:id="eco_de_000033_30_0060">Hauptstadt</w>
+  ...
+</TEI>
 ```
 
-Linguistic layer (`OUTPUT.linguistic.xml`):
+Linguistic layer (`annotations/{name}_linguistic.xml`):
 
 ```xml
-<listAnnotation type="linguistic">
-  <annotation target="#eco_de_000033_30_0060" ana="#stts-NN">
-    <note type="lemma">Hauptstadt</note>
-  </annotation>
-</listAnnotation>
+<TEI xml:id="eco_de_000033_linguistic" type="annotation" ...>
+  ...
+  <listAnnotation type="linguistic">
+    <annotation target="#eco_de_000033_30_0060" ana="#stts-NN">
+      <note type="lemma">Hauptstadt</note>
+    </annotation>
+  </listAnnotation>
+  ...
+</TEI>
 ```
 
-Entity layer (`OUTPUT.entity.xml`):
+Dictionary lookup layer (`annotations/{name}_dictionarylookup.xml`):
 
 ```xml
-<listAnnotation type="entity">
-  <annotation target="#eco_de_000033_150_1850"
-              ana="#cat-animal"
-              corresp="https://www.wikidata.org/wiki/Q25334"/>
-</listAnnotation>
+<TEI xml:id="eco_de_000033_dictionarylookup" type="annotation" ...>
+  ...
+  <listAnnotation type="entity">
+    <annotation target="#eco_de_000033_150_1850"
+                ana="#cat-animal"
+                corresp="https://www.wikidata.org/wiki/Q25334"/>
+  </listAnnotation>
+  ...
+</TEI>
 ```
 
 ## Extract manual inline annotations
