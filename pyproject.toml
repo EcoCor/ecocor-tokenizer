@@ -20,6 +20,7 @@ dependencies = [
 ecocor-tokenize = "ecocor_tokenizer.cli:main"
 ecocor-extract-annotations = "ecocor_tokenizer.extract:main"
 ecocor-extract-gold = "ecocor_tokenizer.gold:main"
+ecocor-export-tsv = "ecocor_tokenizer.export:main"
 
 [tool.setuptools.packages.find]
 include = ["ecocor_tokenizer*"]
