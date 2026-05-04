@@ -77,6 +77,49 @@ STTS_TAXONOMY = """\
       <category xml:id="stts-XY"><catDesc>Non-word</catDesc></category>
     </taxonomy>"""
 
+PTB_TAXONOMY = """\
+    <taxonomy xml:id="ptb">
+      <desc>Penn Treebank POS tagset (used by spaCy en_core_web_*).
+      Reference: https://www.ling.upenn.edu/courses/Fall_2003/ling001/penn_treebank_pos.html</desc>
+      <category xml:id="ptb-CC"><catDesc>Coordinating conjunction</catDesc></category>
+      <category xml:id="ptb-CD"><catDesc>Cardinal number</catDesc></category>
+      <category xml:id="ptb-DT"><catDesc>Determiner</catDesc></category>
+      <category xml:id="ptb-EX"><catDesc>Existential there</catDesc></category>
+      <category xml:id="ptb-FW"><catDesc>Foreign word</catDesc></category>
+      <category xml:id="ptb-IN"><catDesc>Preposition or subordinating conjunction</catDesc></category>
+      <category xml:id="ptb-JJ"><catDesc>Adjective</catDesc></category>
+      <category xml:id="ptb-JJR"><catDesc>Adjective, comparative</catDesc></category>
+      <category xml:id="ptb-JJS"><catDesc>Adjective, superlative</catDesc></category>
+      <category xml:id="ptb-LS"><catDesc>List item marker</catDesc></category>
+      <category xml:id="ptb-MD"><catDesc>Modal</catDesc></category>
+      <category xml:id="ptb-NN"><catDesc>Noun, singular or mass</catDesc></category>
+      <category xml:id="ptb-NNS"><catDesc>Noun, plural</catDesc></category>
+      <category xml:id="ptb-NNP"><catDesc>Proper noun, singular</catDesc></category>
+      <category xml:id="ptb-NNPS"><catDesc>Proper noun, plural</catDesc></category>
+      <category xml:id="ptb-PDT"><catDesc>Predeterminer</catDesc></category>
+      <category xml:id="ptb-POS"><catDesc>Possessive ending</catDesc></category>
+      <category xml:id="ptb-PRP"><catDesc>Personal pronoun</catDesc></category>
+      <category xml:id="ptb-PRP_"><catDesc>Possessive pronoun (PRP$)</catDesc></category>
+      <category xml:id="ptb-RB"><catDesc>Adverb</catDesc></category>
+      <category xml:id="ptb-RBR"><catDesc>Adverb, comparative</catDesc></category>
+      <category xml:id="ptb-RBS"><catDesc>Adverb, superlative</catDesc></category>
+      <category xml:id="ptb-RP"><catDesc>Particle</catDesc></category>
+      <category xml:id="ptb-SYM"><catDesc>Symbol</catDesc></category>
+      <category xml:id="ptb-TO"><catDesc>to</catDesc></category>
+      <category xml:id="ptb-UH"><catDesc>Interjection</catDesc></category>
+      <category xml:id="ptb-VB"><catDesc>Verb, base form</catDesc></category>
+      <category xml:id="ptb-VBD"><catDesc>Verb, past tense</catDesc></category>
+      <category xml:id="ptb-VBG"><catDesc>Verb, gerund or present participle</catDesc></category>
+      <category xml:id="ptb-VBN"><catDesc>Verb, past participle</catDesc></category>
+      <category xml:id="ptb-VBP"><catDesc>Verb, non-3rd person singular present</catDesc></category>
+      <category xml:id="ptb-VBZ"><catDesc>Verb, 3rd person singular present</catDesc></category>
+      <category xml:id="ptb-WDT"><catDesc>Wh-determiner</catDesc></category>
+      <category xml:id="ptb-WP"><catDesc>Wh-pronoun</catDesc></category>
+      <category xml:id="ptb-WP_"><catDesc>Possessive wh-pronoun (WP$)</catDesc></category>
+      <category xml:id="ptb-WRB"><catDesc>Wh-adverb</catDesc></category>
+      <category xml:id="ptb-XX"><catDesc>Unknown / other</catDesc></category>
+    </taxonomy>"""
+
 ENTITY_TAXONOMY = """\
     <taxonomy xml:id="ecocor-entity-types">
       <category xml:id="cat-animal"><catDesc>Animal — Animalia</catDesc></category>
@@ -295,12 +338,17 @@ def detect_language(root: ET.Element) -> Optional[Language]:
 
 
 def extract_paragraphs(root: ET.Element) -> list[Paragraph]:
-    """Collect every `<p xml:id="...">` under `<body>` as a `Paragraph`."""
-    body = root.find(f".//{{{TEI_NS}}}body")
-    if body is None:
+    """Collect every `<p xml:id="...">` under `<text>` as a `Paragraph`.
+
+    Looks under `<text>` rather than only `<body>` so we still pick up
+    paragraphs in malformed TEI where the encoder placed content under
+    `<front>` instead (e.g. eco-en's Jewett, Mills, Griffith).
+    """
+    container = root.find(f".//{{{TEI_NS}}}text")
+    if container is None:
         return []
     out: list[Paragraph] = []
-    for p in body.iter(f"{{{TEI_NS}}}p"):
+    for p in container.iter(f"{{{TEI_NS}}}p"):
         pid = p.get(f"{{{XML_NS}}}id")
         if not pid:
             continue
@@ -318,13 +366,14 @@ def _parse_tei_fragment(xml: str) -> ET.Element:
 def replace_paragraphs(root: ET.Element, annotated: dict[str, str]) -> int:
     """Replace children of each matching `<p>` with tokenized `<w>`/`<pc>`.
 
-    Returns the number of paragraphs replaced.
+    Walks under `<text>` so paragraphs in `<front>` (when `<body>` is
+    empty) are still rewritten. Returns the number of paragraphs replaced.
     """
-    body = root.find(f".//{{{TEI_NS}}}body")
-    if body is None:
+    container = root.find(f".//{{{TEI_NS}}}text")
+    if container is None:
         return 0
     replaced = 0
-    for p in body.iter(f"{{{TEI_NS}}}p"):
+    for p in container.iter(f"{{{TEI_NS}}}p"):
         pid = p.get(f"{{{XML_NS}}}id")
         if not pid or pid not in annotated:
             continue

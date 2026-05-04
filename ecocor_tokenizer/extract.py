@@ -126,6 +126,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="override the source filename in <ref type='source'> "
              "(default: derived from input filename)",
     )
+    parser.add_argument(
+        "--source-id", default="",
+        help="override the source xml:id used for the layer xml:id "
+             "(default: read from input root TEI/@xml:id, with "
+             "'_tokenized' suffix stripped if present)",
+    )
     return parser
 
 
@@ -142,10 +148,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     meta = extract_source_meta(root)
     source_filename = args.source_filename or args.input.name
 
+    # Default: strip "_tokenized" suffix from the source id so the layer
+    # xml:id is e.g. "eco_de_000033_ntee" rather than
+    # "eco_de_000033_tokenized_ntee" when the input is already a
+    # tokenized vanilla TEI.
+    source_id = args.source_id or meta["id"].removesuffix("_tokenized")
+
     write_layer_tei(
         args.output,
         layer_xml,
-        source_id=meta["id"],
+        source_id=source_id,
         layer_type=args.layer_type,
         title=f"Entity annotations ({args.layer_type}): {meta['title'] or source_filename}",
         source_filename=source_filename,

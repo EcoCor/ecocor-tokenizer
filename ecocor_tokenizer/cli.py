@@ -25,6 +25,7 @@ from xml.etree import ElementTree as ET
 
 from .tei import (
     ENTITY_TAXONOMY,
+    PTB_TAXONOMY,
     STTS_TAXONOMY,
     TEI_NS,
     detect_language,
@@ -143,6 +144,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     # Layer source refs point at the tokenized file (where the token IDs live)
     tokenized_filename = args.output.name
 
+    pos_taxonomy = STTS_TAXONOMY if language == Language.DE else PTB_TAXONOMY
+
     if args.linguistic_out:
         write_layer_tei(
             args.linguistic_out,
@@ -152,7 +155,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             title=f"Linguistic annotations: {meta['title'] or source_filename}",
             source_filename=tokenized_filename,
             resp_name="ecocor-tokenizer",
-            taxonomy_xml=STTS_TAXONOMY,
+            taxonomy_xml=pos_taxonomy,
             app_ident="ecocor-tokenizer",
             app_version="0.1.0",
             app_desc=f"spaCy {language.value}_core_news_sm",

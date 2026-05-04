@@ -212,7 +212,10 @@ def linguistic_layer(
             if t["is_punct"]:
                 continue
             target = f"#{t['id']}"
-            pos = t["pos"]
+            # Sanitize POS tag for use in xml:id fragment: '$' isn't a
+            # valid NCName character. Penn Treebank uses PRP$ / WP$;
+            # we encode them as PRP_ / WP_ to match the taxonomy.
+            pos = t["pos"].replace("$", "_")
             lemma = _xml_escape(t["lemma"])
             lines.append(
                 f'  <annotation target="{_xml_attr(target)}" '
